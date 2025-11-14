@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // sert fichiers statiques et uploads
+app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
 
 // --- Fichiers JSON ---
 const productsFile = path.join(__dirname, 'products.json');
@@ -116,4 +117,5 @@ app.delete('/products/:id', async (req, res) => {
 
 // --- Start server ---
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
