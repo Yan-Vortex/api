@@ -29,7 +29,7 @@ async function writeJson(file, data) {
 
 // --- Multer pour upload d'images ---
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'public/uploads/'),
+  destination: (req, file, cb) => cb(null, 'data/uploads/'), // <-- nouveau chemin
   filename: (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const ext = file.originalname.split('.').pop();
@@ -116,3 +116,4 @@ app.delete('/products/:id', async (req, res) => {
 
 // --- Start server ---
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
