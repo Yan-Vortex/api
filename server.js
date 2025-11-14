@@ -10,7 +10,8 @@ const PORT = process.env.PORT || 3000;
 // --- Middlewares ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // sert fichiers statiques et uploads
+app.use(express.urlencoded({ extended: true })); // IMPORTANT: pour parser FormData
+app.use(express.static('public'));
 app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
 
 // --- Fichiers JSON ---
@@ -30,7 +31,7 @@ async function writeJson(file, data) {
 
 // --- Multer pour upload d'images ---
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'data/uploads/'), // <-- nouveau chemin
+  destination: (req, file, cb) => cb(null, 'data/uploads/'),
   filename: (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const ext = file.originalname.split('.').pop();
@@ -39,7 +40,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- Sections endpoints ---
+// --- Sections endpoints (inchangés) ---
 app.get('/sections', async (req, res) => res.json(await readJson(sectionsFile)));
 
 app.post('/sections', async (req, res) => {
@@ -64,7 +65,6 @@ app.delete('/sections/:id', async (req, res) => {
   sections = sections.filter(s => s.id !== req.params.id);
   await writeJson(sectionsFile, sections);
 
-  // Supprimer produits liés à cette section
   let products = await readJson(productsFile);
   products = products.filter(p => p.sectionId !== req.params.id);
   await writeJson(productsFile, products);
@@ -72,39 +72,52 @@ app.delete('/sections/:id', async (req, res) => {
   res.sendStatus(200);
 });
 
-// --- Products endpoints ---
+// --- Products endpoints CORRIGÉS ---
 app.get('/products', async (req, res) => res.json(await readJson(productsFile)));
 
-// Ajouter produit avec image
+// Ajouter produit avec image - VERSION CORRIGÉE
 app.post('/products', upload.single('image'), async (req, res) => {
-  const products = await readJson(productsFile);
-  const newProd = {
-    id: Date.now().toString(),
-    name: req.body.name,
-    price: parseFloat(req.body.price) || 0,
-    description: req.body.description || '',
-    sectionId: req.body.sectionId,
-    image: req.file ? `/uploads/${req.file.filename}` : null
-  };
-  products.push(newProd);
-  await writeJson(productsFile, products);
-  res.json(newProd);
+  try {
+    const products = await readJson(productsFile);
+    const newProd = {
+      id: Date.now().toString(),
+      name: req.body.name,
+      price: parseFloat(req.body.price) || 0,
+      description: req.body.description || '',
+      sectionId: req.body.sectionId,
+      image: req.file ? `/uploads/${req.file.filename}` : null
+    };
+    products.push(newProd);
+    await writeJson(productsFile, products);
+    res.json(newProd);
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'ajout du produit' });
+  }
 });
 
-// Modifier produit avec image
+// Modifier produit avec image - VERSION CORRIGÉE
 app.put('/products/:id', upload.single('image'), async (req, res) => {
-  const products = await readJson(productsFile);
-  const index = products.findIndex(p => p.id === req.params.id);
-  if (index === -1) return res.status(404).send('Produit non trouvé');
+  try {
+    const products = await readJson(productsFile);
+    const index = products.findIndex(p => p.id === req.params.id);
+    if (index === -1) return res.status(404).send('Produit non trouvé');
 
-  products[index].name = req.body.name;
-  products[index].price = parseFloat(req.body.price) || 0;
-  products[index].description = req.body.description || '';
-  products[index].sectionId = req.body.sectionId;
-  if (req.file) products[index].image = `/uploads/${req.file.filename}`;
+    products[index].name = req.body.name;
+    products[index].price = parseFloat(req.body.price) || 0;
+    products[index].description = req.body.description || '';
+    products[index].sectionId = req.body.sectionId;
+    
+    if (req.file) {
+      products[index].image = `/uploads/${req.file.filename}`;
+    }
 
-  await writeJson(productsFile, products);
-  res.json(products[index]);
+    await writeJson(productsFile, products);
+    res.json(products[index]);
+  } catch (error) {
+    console.error('Error updating product:', error);
+    res.status(500).json({ error: 'Erreur lors de la modification du produit' });
+  }
 });
 
 // Supprimer produit
@@ -117,5 +130,3 @@ app.delete('/products/:id', async (req, res) => {
 
 // --- Start server ---
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-
