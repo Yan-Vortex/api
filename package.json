@@ -1,15 +1,16 @@
 {
   "name": "api",
   "version": "1.0.0",
+  "description": "API pour Laura Shop's — gestion des produits et sections",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "multer": "^1.4.5-lts.1"
+    "body-parser": "^1.20.2",
+    "fs-extra": "^11.1.1",
+    "nodemon": "^3.0.1"
   }
 }
-
-
