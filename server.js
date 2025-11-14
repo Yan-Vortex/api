@@ -1,71 +1,83 @@
-// server.js
-if (req.file) {
-imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-} else if (body.image) {
-imageUrl = body.image; // allow client to send dataURL or existing url
-}
+const express = require('express');
+const fs = require('fs-extra');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const path = require('path');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-const products = readJSON(PRODUCTS_FILE);
-const newProduct = {
-id: Date.now(),
-name: title,
-price,
-sectionId,
-description,
-image: imageUrl
-};
-products.push(newProduct);
-writeJSON(PRODUCTS_FILE, products);
-res.json(newProduct);
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static('public')); // Pour servir ton index.html et assets
 
+// Fichiers JSON
+const sectionsFile = path.join(__dirname, 'sections.json');
+const productsFile = path.join(__dirname, 'products.json');
 
-app.put('/products/:id', upload.single('image'), (req, res) => {
-const id = Number(req.params.id);
-const body = req.body || {};
-const title = body.title || body.name;
-const price = Number(body.price) || 0;
-const sectionId = Number(body.sectionId) || null;
-const description = body.description || '';
+// Initialisation fichiers si n'existent pas
+fs.ensureFileSync(sectionsFile);
+fs.ensureFileSync(productsFile);
+fs.writeJsonSync(sectionsFile, fs.readJsonSync(sectionsFile, {throws:false}) || []);
+fs.writeJsonSync(productsFile, fs.readJsonSync(productsFile, {throws:false}) || []);
 
+// Utils
+const readJson = file => fs.readJson(file).catch(()=>[]);
+const writeJson = (file, data) => fs.writeJson(file, data);
 
-const products = readJSON(PRODUCTS_FILE);
-const index = products.findIndex(p => p.id === id);
-if (index === -1) return res.status(404).json({ error: 'Not found' });
+// --- Sections ---
+app.get('/sections', async (req, res) => res.json(await readJson(sectionsFile)));
 
-
-let imageUrl = products[index].image;
-if (req.file) {
-imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-} else if (body.image) {
-imageUrl = body.image;
-}
-
-
-products[index] = {
-id,
-name: title,
-price,
-sectionId,
-description,
-image: imageUrl
-};
-writeJSON(PRODUCTS_FILE, products);
-res.json(products[index]);
-
-
-
-app.delete('/products/:id', (req, res) => {
-const id = Number(req.params.id);
-let products = readJSON(PRODUCTS_FILE);
-products = products.filter(p => p.id !== id);
-writeJSON(PRODUCTS_FILE, products);
-res.json({ success: true });
+app.post('/sections', async (req, res) => {
+  const sections = await readJson(sectionsFile);
+  const newSec = { id: Date.now().toString(), name: req.body.name };
+  sections.push(newSec);
+  await writeJson(sectionsFile, sections);
+  res.json(newSec);
 });
 
+app.put('/sections/:id', async (req, res) => {
+  const sections = await readJson(sectionsFile);
+  const index = sections.findIndex(s => s.id === req.params.id);
+  if(index === -1) return res.status(404).send('Section non trouvée');
+  sections[index].name = req.body.name;
+  await writeJson(sectionsFile, sections);
+  res.json(sections[index]);
+});
 
-/* ------------------- START ---------------------- */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API started on port ${PORT}`));
+app.delete('/sections/:id', async (req, res) => {
+  let sections = await readJson(sectionsFile);
+  sections = sections.filter(s => s.id !== req.params.id);
+  await writeJson(sectionsFile, sections);
+  res.sendStatus(204);
+});
 
+// --- Products ---
+app.get('/products', async (req, res) => res.json(await readJson(productsFile)));
 
+app.post('/products', async (req, res) => {
+  const products = await readJson(productsFile);
+  const newProd = { id: Date.now().toString(), ...req.body };
+  products.push(newProd);
+  await writeJson(productsFile, products);
+  res.json(newProd);
+});
+
+app.put('/products/:id', async (req, res) => {
+  const products = await readJson(productsFile);
+  const index = products.findIndex(p => p.id === req.params.id);
+  if(index === -1) return res.status(404).send('Produit non trouvé');
+  products[index] = { ...products[index], ...req.body };
+  await writeJson(productsFile, products);
+  res.json(products[index]);
+});
+
+app.delete('/products/:id', async (req, res) => {
+  let products = await readJson(productsFile);
+  products = products.filter(p => p.id !== req.params.id);
+  await writeJson(productsFile, products);
+  res.sendStatus(204);
+});
+
+// --- Start server ---
+app.listen(PORT, () => console.log(`API running on port ${PORT}`));
