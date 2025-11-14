@@ -18,7 +18,6 @@ image: imageUrl
 products.push(newProduct);
 writeJSON(PRODUCTS_FILE, products);
 res.json(newProduct);
-});
 
 
 app.put('/products/:id', upload.single('image'), (req, res) => {
@@ -68,3 +67,4 @@ res.json({ success: true });
 /* ------------------- START ---------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`API started on port ${PORT}`));
+
