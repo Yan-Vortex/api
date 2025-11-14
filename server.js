@@ -7,9 +7,10 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// --- Middlewares ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // sert les fichiers statiques et uploads
+app.use(express.static('public')); // sert fichiers statiques et uploads
 
 // --- Fichiers JSON ---
 const productsFile = path.join(__dirname, 'products.json');
@@ -39,6 +40,7 @@ const upload = multer({ storage });
 
 // --- Sections endpoints ---
 app.get('/sections', async (req, res) => res.json(await readJson(sectionsFile)));
+
 app.post('/sections', async (req, res) => {
   const sections = await readJson(sectionsFile);
   const newSection = { id: Date.now().toString(), name: req.body.name };
@@ -46,6 +48,7 @@ app.post('/sections', async (req, res) => {
   await writeJson(sectionsFile, sections);
   res.json(newSection);
 });
+
 app.put('/sections/:id', async (req, res) => {
   const sections = await readJson(sectionsFile);
   const index = sections.findIndex(s => s.id === req.params.id);
@@ -54,12 +57,13 @@ app.put('/sections/:id', async (req, res) => {
   await writeJson(sectionsFile, sections);
   res.json(sections[index]);
 });
+
 app.delete('/sections/:id', async (req, res) => {
   let sections = await readJson(sectionsFile);
   sections = sections.filter(s => s.id !== req.params.id);
   await writeJson(sectionsFile, sections);
 
-  // Supprimer produits de cette section
+  // Supprimer produits liés à cette section
   let products = await readJson(productsFile);
   products = products.filter(p => p.sectionId !== req.params.id);
   await writeJson(productsFile, products);
