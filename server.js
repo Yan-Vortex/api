@@ -5,7 +5,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const ARTICLES_FILE = "./data/products.json";
+const PRODUCTS_FILE = "./data/products.json";
 const SECTIONS_FILE = "./data/sections.json";
 
 function readJSON(file) {
@@ -54,16 +54,16 @@ app.delete("/sections/:id", (req, res) => {
 
 // Liste articles
 app.get("/products", (req, res) => {
-  res.json(readJSON(ARTICLES_FILE));
+  res.json(readJSON(PRODUCTS_FILE));
 });
 
 // Ajouter article
 app.post("/products", (req, res) => {
   const { title, price, image, sectionId } = req.body;
 
-  const products = readJSON(ARTICLES_FILE);
+  const products = readJSON(PRODUCTS_FILE);
 
-  const newArticle = {
+  const newProducts = {
     id: Date.now(),
     title,
     price,
@@ -71,10 +71,10 @@ app.post("/products", (req, res) => {
     sectionId
   };
 
-  products.push(newArticle);
-  writeJSON(ARTICLES_FILE, products);
+  products.push(newProducts);
+  writeJSON(PRODUCTS_FILE, products);
 
-  res.json(newArticle);
+  res.json(newProducts);
 });
 
 // Modifier article
@@ -82,13 +82,13 @@ app.put("/products/:id", (req, res) => {
   const id = Number(req.params.id);
   const { title, price, image, sectionId } = req.body;
 
-  const products = readJSON(ARTICLES_FILE);
+  const products = readJSON(PRODUCTS_FILE);
 
   const index = products.findIndex(a => a.id === id);
   if (index === -1) return res.status(404).json({ error: "Not found" });
 
   products[index] = { id, title, price, image, sectionId };
-  writeJSON(ARTICLES_FILE, products);
+  writeJSON(PRODUCTS_FILE, products);
 
   res.json(products[index]);
 });
@@ -96,11 +96,11 @@ app.put("/products/:id", (req, res) => {
 // Supprimer article
 app.delete("/products/:id", (req, res) => {
   const id = Number(req.params.id);
-  let products = readJSON(ARTICLES_FILE);
+  let products = readJSON(PRODUCTS_FILE);
 
   products = products.filter(a => a.id !== id);
 
-  writeJSON(ARTICLES_FILE, products);
+  writeJSON(PRODUCTS_FILE, products);
   res.json({ success: true });
 });
 
