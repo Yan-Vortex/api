@@ -49,12 +49,14 @@ async function connectDB() {
 const storage = multer.memoryStorage(); // Stockage en mémoire
 const upload = multer({ 
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
 // Fonction pour uploader une image sur Cloudinary
 async function uploadToCloudinary(fileBuffer, folder = 'laurashop') {
   return new Promise((resolve, reject) => {
+    console.log('☁️ Tentative d\'upload Cloudinary...');
+    
     cloudinary.uploader.upload_stream(
       {
         resource_type: 'image',
@@ -63,8 +65,13 @@ async function uploadToCloudinary(fileBuffer, folder = 'laurashop') {
         fetch_format: 'auto'
       },
       (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
+        if (error) {
+          console.error('❌ Erreur Cloudinary:', error);
+          reject(error);
+        } else {
+          console.log('✅ Upload Cloudinary réussi:', result.secure_url);
+          resolve(result);
+        }
       }
     ).end(fileBuffer);
   });
@@ -73,7 +80,7 @@ async function uploadToCloudinary(fileBuffer, folder = 'laurashop') {
 // Routes pour les sections
 app.get('/sections', async (req, res) => {
   try {
-    const sections = await sectionsCollection.find({}).sort({ _id: -1 }).toArray();
+    const sections = await sectionsCollection.find({}).sort({ updatedAt: -1, createdAt: -1 }).toArray();
     res.json(sections);
   } catch (error) {
     console.error('Error fetching sections:', error);
@@ -85,7 +92,8 @@ app.post('/sections', async (req, res) => {
   try {
     const newSection = {
       name: req.body.name,
-      createdAt: new Date()
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
     
     const result = await sectionsCollection.insertOne(newSection);
@@ -103,7 +111,10 @@ app.put('/sections/:id', async (req, res) => {
   try {
     const result = await sectionsCollection.updateOne(
       { _id: new ObjectId(req.params.id) },
-      { $set: { name: req.body.name } }
+      { $set: { 
+        name: req.body.name,
+        updatedAt: new Date()
+      } }
     );
     
     if (result.matchedCount === 0) {
@@ -151,7 +162,6 @@ app.post('/products', upload.single('image'), async (req, res) => {
     if (req.file) {
       const uploadResult = await uploadToCloudinary(req.file.buffer, 'laurashop/products');
       imageUrl = uploadResult.secure_url;
-      console.log('✅ Image uploadée sur Cloudinary:', imageUrl);
     }
     
     const newProduct = {
@@ -164,6 +174,20 @@ app.post('/products', upload.single('image'), async (req, res) => {
     };
     
     const result = await productsCollection.insertOne(newProduct);
+    
+    // METTRE À JOUR LA DATE DE LA SECTION
+    if (req.body.sectionId && req.body.sectionId !== 'undefined') {
+      try {
+        await sectionsCollection.updateOne(
+          { _id: new ObjectId(req.body.sectionId) },
+          { $set: { updatedAt: new Date() } }
+        );
+        console.log('✅ Section mise à jour:', req.body.sectionId);
+      } catch (sectionError) {
+        console.error('❌ Erreur mise à jour section:', sectionError);
+      }
+    }
+    
     res.json({ 
       id: result.insertedId, 
       ...newProduct 
@@ -187,7 +211,6 @@ app.put('/products/:id', upload.single('image'), async (req, res) => {
     if (req.file) {
       const uploadResult = await uploadToCloudinary(req.file.buffer, 'laurashop/products');
       updateData.image = uploadResult.secure_url;
-      console.log('✅ Nouvelle image uploadée sur Cloudinary:', updateData.image);
     }
     
     const result = await productsCollection.updateOne(
@@ -197,6 +220,19 @@ app.put('/products/:id', upload.single('image'), async (req, res) => {
     
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: 'Produit non trouvé' });
+    }
+    
+    // METTRE À JOUR LA DATE DE LA SECTION
+    if (req.body.sectionId && req.body.sectionId !== 'undefined') {
+      try {
+        await sectionsCollection.updateOne(
+          { _id: new ObjectId(req.body.sectionId) },
+          { $set: { updatedAt: new Date() } }
+        );
+        console.log('✅ Section mise à jour:', req.body.sectionId);
+      } catch (sectionError) {
+        console.error('❌ Erreur mise à jour section:', sectionError);
+      }
     }
     
     res.json({ message: 'Produit mis à jour' });
@@ -231,6 +267,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Gestion des erreurs 404
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route non trouvée' });
+});
+
+// Gestionnaire d'erreurs global
+app.use((error, req, res, next) => {
+  console.error('Global error handler:', error);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // Démarrer le serveur
 connectDB().then(() => {
   app.listen(PORT, () => {
@@ -238,5 +285,15 @@ connectDB().then(() => {
     console.log(`📊 Base de données: MongoDB Atlas`);
     console.log(`☁️  Stockage images: Cloudinary`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    console.log(`📝 Routes disponibles:`);
+    console.log(`   GET  /sections`);
+    console.log(`   POST /sections`);
+    console.log(`   PUT  /sections/:id`);
+    console.log(`   DEL  /sections/:id`);
+    console.log(`   GET  /products`);
+    console.log(`   POST /products`);
+    console.log(`   PUT  /products/:id`);
+    console.log(`   DEL  /products/:id`);
   });
 });
+
