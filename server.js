@@ -2,17 +2,23 @@ const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const multer = require('multer');
 const cors = require('cors');
+const cloudinary = require('cloudinary').v2;
 const path = require('path');
-const fs = require('fs-extra');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configuration Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dnxzgsazb',
+  api_key: process.env.CLOUDINARY_API_KEY || '959122669425937',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'ZRhUx2OxVWyzWO_6QGDwXF14xWE'
+});
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'data', 'uploads')));
 
 // Configuration MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://LauraShop:Laure1975@cluster0.jrqtjbz.mongodb.net/?appName=cluster0';
@@ -39,24 +45,30 @@ async function connectDB() {
   }
 }
 
-// Configuration Multer pour les images
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, 'data', 'uploads');
-    fs.ensureDirSync(uploadDir);
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `${unique}${ext}`);
-  }
-});
-
+// Configuration Multer pour les images temporaires
+const storage = multer.memoryStorage(); // Stockage en mémoire
 const upload = multer({ 
   storage,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 });
+
+// Fonction pour uploader une image sur Cloudinary
+async function uploadToCloudinary(fileBuffer, folder = 'laurashop') {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        folder: folder,
+        quality: 'auto',
+        fetch_format: 'auto'
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    ).end(fileBuffer);
+  });
+}
 
 // Routes pour les sections
 app.get('/sections', async (req, res) => {
@@ -133,12 +145,21 @@ app.get('/products', async (req, res) => {
 
 app.post('/products', upload.single('image'), async (req, res) => {
   try {
+    let imageUrl = null;
+    
+    // Upload de l'image sur Cloudinary si elle existe
+    if (req.file) {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, 'laurashop/products');
+      imageUrl = uploadResult.secure_url;
+      console.log('✅ Image uploadée sur Cloudinary:', imageUrl);
+    }
+    
     const newProduct = {
       name: req.body.name,
       price: parseFloat(req.body.price) || 0,
       description: req.body.description || '',
       sectionId: req.body.sectionId,
-      image: req.file ? `/uploads/${req.file.filename}` : null,
+      image: imageUrl, // URL Cloudinary permanente
       createdAt: new Date()
     };
     
@@ -162,8 +183,11 @@ app.put('/products/:id', upload.single('image'), async (req, res) => {
       sectionId: req.body.sectionId
     };
     
+    // Upload de la nouvelle image sur Cloudinary si elle existe
     if (req.file) {
-      updateData.image = `/uploads/${req.file.filename}`;
+      const uploadResult = await uploadToCloudinary(req.file.buffer, 'laurashop/products');
+      updateData.image = uploadResult.secure_url;
+      console.log('✅ Nouvelle image uploadée sur Cloudinary:', updateData.image);
     }
     
     const result = await productsCollection.updateOne(
@@ -202,6 +226,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     database: db ? 'Connected' : 'Disconnected',
+    cloudinary: cloudinary.config().cloud_name ? 'Configured' : 'Not configured',
     timestamp: new Date().toISOString()
   });
 });
@@ -211,6 +236,7 @@ connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`🚀 Serveur démarré sur le port ${PORT}`);
     console.log(`📊 Base de données: MongoDB Atlas`);
+    console.log(`☁️  Stockage images: Cloudinary`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   });
 });
